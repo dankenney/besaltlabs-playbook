@@ -200,6 +200,10 @@ header.header {
 	transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .pb-card:hover { transform: translateY(-2px); border-color: var(--sl-color-accent); box-shadow: 0 10px 30px -18px var(--sl-color-accent); }
+@media (prefers-reduced-motion: reduce) {
+	.card, .pb-card { transition: none; }
+	.pb-card:hover { transform: none; }
+}
 .pb-card .pb-num { font-family: var(--sl-font-mono); font-size: 0.72rem; color: var(--sl-color-accent); letter-spacing: 0.08em; }
 .pb-card strong { font-family: var(--pb-font-display); font-size: 1.15rem; color: var(--sl-color-white); font-weight: 600; line-height: 1.25; }
 .pb-card p { margin: 0 !important; font-size: 0.9rem; line-height: 1.5; color: var(--sl-color-gray-3); }
