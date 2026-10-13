@@ -32,7 +32,9 @@ jobs:
       - run: npm ci
       - name: Write CNAME (optional)
         if: ${{ vars.PAGES_CUSTOM_DOMAIN != '' }}
-        run: echo "${{ vars.PAGES_CUSTOM_DOMAIN }}" > public/CNAME
+        env:
+          PAGES_CUSTOM_DOMAIN: ${{ vars.PAGES_CUSTOM_DOMAIN }}
+        run: printf '%s\n' "$PAGES_CUSTOM_DOMAIN" > public/CNAME
       - name: Build
         env:
           SITE_URL: ${{ vars.SITE_URL }}
