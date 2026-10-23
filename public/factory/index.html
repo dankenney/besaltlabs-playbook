@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How a small team uses AI agents to build software: agents build and review, a separate machine tests, and a person makes every decision that matters.">
+<title>Inside Our AI Factory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an engineering-sheet floor map on top; caption, controls and a ten-scene rail below. One amber dot carries a real change across the floor. */
+:root{
+  --bg:#E9EDF1; --sheet:#F5F7F9; --paper:#FFFFFF;
+  --ink:#14202B; --ink-2:#3B4B58; --muted:#5D6D7A;
+  --line:#98A7B3; --grid:#E1E6EB; --zone:#B3C0CB;
+  --accent:#1D58A6; --accent-soft:#E1EBF7;
+  --token:#F0A400; --status:#23807E;
+  --pass:#2A7A4A; --fail:#B42318; --warn:#9A5A00;
+  --display:"Barlow Condensed","Arial Narrow","Roboto Condensed",sans-serif;
+  --body:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C131A; --sheet:#101A23; --paper:#15212C;
+    --ink:#E3EAF0; --ink-2:#B3C1CC; --muted:#8C9DAA;
+    --line:#46596B; --grid:#16222D; --zone:#2D3E4D;
+    --accent:#7AB1EF; --accent-soft:#1A2D42;
+    --token:#FFC13B; --status:#50C2BE;
+    --pass:#63C98F; --fail:#F27B70; --warn:#E9A548;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C131A; --sheet:#101A23; --paper:#15212C;
+  --ink:#E3EAF0; --ink-2:#B3C1CC; --muted:#8C9DAA;
+  --line:#46596B; --grid:#16222D; --zone:#2D3E4D;
+  --accent:#7AB1EF; --accent-soft:#1A2D42;
+  --token:#FFC13B; --status:#50C2BE;
+  --pass:#63C98F; --fail:#F27B70; --warn:#E9A548;
+  color-scheme:dark;
+}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45}
+.page{max-width:1240px;margin:0 auto;padding-block:28px 44px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+.head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px 32px}
+.intro{min-width:0;flex:1 1 520px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(32px,4.4vw,48px);line-height:1;letter-spacing:.005em;margin:0;text-wrap:balance}
+.lede{max-width:64ch;color:var(--ink-2);font-size:17px;margin:10px 0 0}
+.titleblock{display:grid;grid-template-columns:auto auto;margin:0;border:1px solid var(--ink-2);font-family:var(--mono);font-size:11.5px}
+.titleblock div{display:contents}
+.titleblock dt,.titleblock dd{margin:0;padding:6px 10px;border-bottom:1px solid var(--zone)}
+.titleblock dt{color:var(--muted);text-transform:uppercase;letter-spacing:.1em;border-right:1px solid var(--zone)}
+.titleblock div:last-child dt,.titleblock div:last-child dd{border-bottom:0}
+.stage{margin:0;background:var(--sheet);border:1px solid var(--zone);border-radius:6px;overflow-x:auto}
+.stage svg{display:block;width:100%;height:auto}
+.hint{display:none;margin:-8px 0 0;font:400 12px var(--mono);color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;list-style:none;margin:0;padding:0;font-size:13.5px;color:var(--ink-2)}
+.legend li{display:flex;align-items:center;gap:8px}
+.legend svg{flex:none}
+.band{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px 28px;align-items:start;border-top:1px solid var(--zone);padding-top:16px}
+.captext{min-width:0}
+.meta{margin:0;font:500 11.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.band h2{margin:4px 0 6px;font-family:var(--display);font-weight:600;font-size:30px;line-height:1.05;text-wrap:balance}
+.caption{margin:0;max-width:70ch;font-size:18px;color:var(--ink-2);min-height:calc(1.45em * 3)}
+.pbar{margin-top:12px;height:3px;background:var(--grid);border-radius:2px;overflow:hidden;max-width:70ch}
+.pbar span{display:block;height:100%;width:0;background:var(--accent)}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border:1px solid var(--ink-2);border-radius:4px;background:var(--paper);color:var(--ink);font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:var(--sheet);min-width:104px;justify-content:center}
+.btn svg{width:12px;height:12px;fill:currentColor;flex:none}
+.btn:focus-visible,.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.rail{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;list-style:none;margin:0;padding:0}
+.chip{width:100%;min-width:0;display:flex;align-items:baseline;gap:8px;padding:8px 10px;border:1px solid var(--zone);border-radius:4px;background:transparent;color:var(--muted);font:500 14px var(--body);text-align:left;cursor:pointer}
+.chip .n{font:500 11px var(--mono);color:var(--muted)}
+.chip.done{color:var(--ink-2)}
+.chip[aria-current="step"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.chip[aria-current="step"] .n{color:var(--accent)}
+.foot{margin:0;max-width:78ch;font-size:13.5px;color:var(--muted)}
+@media (min-width:980px){.rail{grid-template-columns:repeat(10,minmax(0,1fr))}}
+@media (max-width:760px){.stage svg{width:840px;max-width:none}.hint{display:block}.band{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:480px){.rail{grid-template-columns:repeat(2,minmax(0,1fr))}.band h2{font-size:26px}.caption{font-size:17px}}
+
+/* drawing */
+.sheetbg{fill:var(--sheet)}
+.gridline{fill:none;stroke:var(--grid);stroke-width:1}
+.zones rect{fill:none;stroke:var(--zone);stroke-width:1.2;stroke-dasharray:7 5}
+.zlabel{font:500 11px var(--mono);letter-spacing:.12em;fill:var(--muted)}
+.zsub{font:400 11px var(--mono);fill:var(--muted)}
+.elabel{font:400 11px var(--mono);fill:var(--muted)}
+.mk{fill:var(--line)} .mk.on{fill:var(--accent)} .mk.st{fill:var(--status)}
+.edge{fill:none;stroke:var(--line);stroke-width:1.6;transition:stroke .3s,opacity .3s,stroke-width .3s}
+.edge.ro{stroke-dasharray:1.5 5;stroke-linecap:round;stroke-width:2}
+.edge.status{stroke:var(--status);stroke-dasharray:5 4;stroke-width:1.3}
+.edge.on{stroke:var(--accent);stroke-width:2.4}
+.edge.status.on{stroke:var(--status);stroke-width:2}
+.edge.dim{opacity:.35}
+.hdr .bar{fill:var(--paper);stroke:var(--ink-2);stroke-width:1.4;transition:stroke .3s}
+.hdr .plate{fill:var(--ink);transition:fill .3s}
+.hdr-name{font:700 15px var(--display);letter-spacing:.14em;fill:var(--sheet)}
+.hdr-text{font:400 11.5px var(--mono);fill:var(--ink-2)}
+.hdr.on .bar{stroke:var(--accent);stroke-width:2.2}
+.hdr.on .plate{fill:var(--accent)}
+.hdr.ping .bar{stroke:var(--status);stroke-width:3}
+.node{transition:opacity .35s}
+.node.dim{opacity:.4}
+.node .box{fill:var(--paper);stroke:var(--ink-2);stroke-width:1.2;transition:stroke .3s}
+.node.on .box{stroke:var(--accent);stroke-width:2.2}
+.tag{font:500 9.5px var(--mono);letter-spacing:.1em;fill:var(--muted)}
+.name{font:600 21px var(--display);fill:var(--ink)}
+.name.big{font-size:28px}
+.read{font:400 11.5px var(--mono);fill:var(--ink-2)}
+.read.pass{fill:var(--pass)} .read.fail{fill:var(--fail)} .read.warn{fill:var(--warn)}
+.led{fill:var(--zone);transition:fill .25s} .led.lit{fill:var(--accent)}
+.prog-bg{fill:var(--grid)} .prog{fill:var(--accent)} .prog.pass{fill:var(--pass)}
+.cbox{fill:none;stroke:var(--muted);stroke-width:1.2}
+.ctext{font:500 13.5px var(--body);fill:var(--muted)}
+.citem.lit .cbox{fill:var(--accent);stroke:var(--accent)}
+.citem.lit .ctext{fill:var(--ink)}
+.halo{fill:var(--token);opacity:.22}
+.token{fill:var(--token);stroke:var(--ink);stroke-width:2}
+.pulse{fill:var(--status)}
+@media (prefers-reduced-motion:reduce){.edge,.node,.led,.hdr .bar,.hdr .plate,.node .box{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="head">
+    <div class="intro">
+      <h1>How AI agents build our software</h1>
+      <p class="lede">A small team, six AI agents and two machines. Follow one change from an idea to a release: agents build and review it, a separate machine tests it, and a person makes every decision that matters. Press play, or step through the ten scenes.</p>
+    </div>
+    <dl class="titleblock" aria-label="Drawing details">
+      <div><dt>Sheet</dt><dd>1 of 1</dd></div>
+      <div><dt>Drawn</dt><dd>Oct 2026</dd></div>
+      <div><dt>Data</dt><dd>Synthetic only</dd></div>
+    </dl>
+  </header>
+
+  <figure class="stage">
+    <svg id="map" viewBox="0 0 1200 760" role="img" aria-labelledby="mapTitle mapDesc">
+      <title id="mapTitle">The software factory floor</title>
+      <desc id="mapDesc">An issue in the tracker goes to the lead AI agent, which writes a brief and assigns one of two builder agents. An agent from a different vendor reviews the change, and two read-only agents can add second opinions. The change is queued for testing, and the exact version goes to a separate test machine with an engine lane and an app lane; results come back to the workstation. The lead agent checks the result, merges app changes after the full tests, and sends engine changes to the product owner, who or whose maintainer agent merges them. The product owner answers the decisions and checks the live system in person, where agents can only read. Every task posts its status to the tracker.</desc>
+    </svg>
+  </figure>
+  <p class="hint">Scroll the drawing sideways to see all of it.</p>
+
+  <ul class="legend" aria-label="Legend">
+    <li><svg width="22" height="14" aria-hidden="true"><circle cx="11" cy="7" r="5" fill="var(--token)" stroke="var(--ink)" stroke-width="1.6"/></svg>The change being built</li>
+    <li><svg width="36" height="10" aria-hidden="true"><path d="M2 5H34" stroke="var(--line)" stroke-width="1.8"/></svg>Work handed over</li>
+    <li><svg width="36" height="10" aria-hidden="true"><path d="M2 5H34" stroke="var(--status)" stroke-width="1.6" stroke-dasharray="5 4"/></svg>Status posted to the tracker</li>
+    <li><svg width="36" height="10" aria-hidden="true"><path d="M2 5H34" stroke="var(--line)" stroke-width="2" stroke-dasharray="1.5 5" stroke-linecap="round"/></svg>Read-only access</li>
+  </ul>
+
+  <section class="band" aria-label="Scene">
+    <div class="captext" id="capwrap" aria-live="off">
+      <p class="meta">Scene <span id="sn">01</span> of 10</p>
+      <h2 id="st">The factory floor</h2>
+      <p class="caption" id="sc">One person decides. Six AI agents build, review and check the work. Two machines run the tests, and an issue tracker records every step.</p>
+      <div class="pbar" aria-hidden="true"><span id="pb"></span></div>
+    </div>
+    <div class="controls">
+      <button id="prev" class="btn" type="button" aria-label="Previous scene"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M8.5 1 3 6l5.5 5z"/></svg>Prev</button>
+      <button id="play" class="btn primary" type="button"><svg viewBox="0 0 12 12" aria-hidden="true" id="playicon"><path d="M2 1h3v10H2zM7 1h3v10H7z"/></svg><span id="playlabel">Pause</span></button>
+      <button id="next" class="btn" type="button" aria-label="Next scene">Next<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 1 9 6l-5.5 5z"/></svg></button>
+    </div>
+  </section>
+
+  <ol class="rail" id="rail" aria-label="Scenes"></ol>
+
+  <p class="foot">A real workflow, simplified. The walkthrough follows one real change from October 2026. All data used in testing is synthetic.</p>
+</div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('map');
+  const el = (tag, attrs, parent) => {
+    const n = document.createElementNS(NS, tag);
+    if (attrs) for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const txt = (parent, x, y, cls, s, anchor) => {
+    const n = el('text', { x, y, class: cls }, parent);
+    if (anchor) n.setAttribute('text-anchor', anchor);
+    n.textContent = s;
+    return n;
+  };
+
+  const NODES = [
+    { id: 'live', x: 180, y: 32, w: 240, h: 60, tag: 'LIVE SYSTEM', name: 'Live system', read: 'agents can only read here' },
+    { id: 'owner', x: 490, y: 32, w: 220, h: 60, tag: 'PERSON', name: 'Product owner', read: 'decides numbers and claims' },
+    { id: 'lead', x: 450, y: 254, w: 300, h: 92, tag: 'ORCHESTRATOR', name: 'Lead AI agent', read: 'plans, checks, merges app code' },
+    { id: 'builderA', x: 55, y: 248, w: 230, h: 64, tag: 'BUILDER · REVIEWER', name: 'Builder agent A', read: 'builds and reviews' },
+    { id: 'builderB', x: 55, y: 358, w: 230, h: 64, tag: 'BUILDER · REVIEWER', name: 'Builder agent B', read: 'builds and reviews' },
+    { id: 'reviewer', x: 55, y: 508, w: 230, h: 64, tag: 'READ-ONLY REVIEWER', name: 'Reviewer agent', read: 'can read, cannot change code' },
+    { id: 'shadow', x: 55, y: 618, w: 230, h: 64, tag: 'SHADOW REVIEWER', name: 'Second-opinion agent', read: 'read-only' },
+    { id: 'runs', x: 410, y: 438, w: 180, h: 64, tag: 'SHARED WORKSPACE', name: 'Task folders', read: 'briefs and results' },
+    { id: 'queue', x: 610, y: 438, w: 180, h: 64, tag: 'TEST QUEUE', name: 'Test queue', read: 'one job per lane' },
+    { id: 'suite', x: 915, y: 240, w: 230, h: 60, tag: 'APP CODE', name: 'App', read: 'merged after full tests' },
+    { id: 'engine', x: 915, y: 330, w: 230, h: 60, tag: 'ENGINE CODE', name: 'Engine', read: 'owner approves merges' },
+    { id: 'el', x: 915, y: 417, w: 230, h: 56, tag: 'AI MAINTAINER', name: 'Maintainer agent', read: 'keeps engine changes tidy' },
+    { id: 'enginelane', x: 915, y: 549, w: 230, h: 70, tag: 'ENGINE TESTS', name: 'Sealed container', read: '~2,600 tests · ~35 min', prog: true },
+    { id: 'suitelane', x: 915, y: 645, w: 230, h: 70, tag: 'APP TESTS', name: 'Checks + real browser', read: '~4,300 tests · ~13 min', prog: true },
+  ];
+  const ZONES = [
+    { x: 24, y: 196, w: 796, h: 548, lx: 32, label: 'WORKSTATION' },
+    { x: 880, y: 196, w: 296, h: 294, label: 'CODE HOST' },
+    { x: 880, y: 506, w: 296, h: 238, label: 'TEST MACHINE', sub: 'exact version, over a private link' },
+  ];
+  const EDGES = [
+    { id: 'owner-lead', d: 'M600 92V254' },
+    { id: 'tracker-lead', d: 'M730 168V254' },
+    { id: 'lead-tracker', d: 'M690 254V168', kind: 'status' },
+    { id: 'owner-live', d: 'M490 62H420' },
+    { id: 'lead-live', d: 'M470 254C470 200 300 210 300 92', kind: 'ro' },
+    { id: 'lead-builderA', d: 'M450 268C370 268 365 280 285 280' },
+    { id: 'lead-builderB', d: 'M450 290C360 290 370 390 285 390' },
+    { id: 'lead-reviewer', d: 'M450 312C350 312 380 540 285 540' },
+    { id: 'lead-shadow', d: 'M450 334C340 334 390 650 285 650' },
+    { id: 'lead-queue', d: 'M700 346V438' },
+    { id: 'runs-lead', d: 'M500 438V346' },
+    { id: 'queue-engine', d: 'M790 460C850 460 850 584 915 584' },
+    { id: 'queue-suite', d: 'M790 482C845 482 845 680 915 680' },
+    { id: 'results-engine', d: 'M1145 584H1166V732H395V470H410' },
+    { id: 'results-suite', d: 'M1145 680H1166V732H395V470H410' },
+    { id: 'lead-suite', d: 'M750 278C830 278 840 270 915 270' },
+    { id: 'lead-engine', d: 'M750 316C830 316 840 360 915 360' },
+    { id: 'owner-engine', d: 'M710 62H1170V360H1145' },
+    { id: 'el-engine', d: 'M1030 417V390' },
+    { id: 's-builderA', d: 'M55 280H42V168', kind: 'status' },
+    { id: 's-builderB', d: 'M55 390H42V168', kind: 'status' },
+    { id: 's-reviewer', d: 'M55 540H42V168', kind: 'status' },
+    { id: 's-shadow', d: 'M55 650H42V168', kind: 'status' },
+  ];
+  const LABELS = [
+    { x: 608, y: 121, t: 'decisions' },
+    { x: 314, y: 121, t: 'read-only checks' },
+    { x: 738, y: 206, t: 'issue' },
+    { x: 684, y: 206, t: 'status', anchor: 'end' },
+    { x: 296, y: 240, t: 'briefs + dispatch' },
+    { x: 930, y: 54, t: 'Owner merges engine changes' },
+    { x: 610, y: 725, t: 'results back to the workstation', anchor: 'middle' },
+    { x: 34, y: 470, t: 'STATUS TO TRACKER', anchor: 'middle', rot: true },
+  ];
+  const CHARTER = ['People approve', 'Failing test first', 'Never weaken a test', 'Example data only', 'Live system off-limits', 'One heavy job at a time'];
+  const BOOT = ['owner', 'live', 'lead', 'builderA', 'builderB', 'reviewer', 'shadow', 'runs', 'queue', 'suite', 'engine', 'el', 'enginelane', 'suitelane', 'charter'];
+
+  const mv = (tok, path, at, d, rev) => ({ type: 'move', tok, path, at, d, rev: !!rev });
+  const rd = (node, at, text, cls) => ({ type: 'read', node, at, text, cls: cls || '' });
+  const pu = (path, at, d) => ({ type: 'pulse', path, at, d });
+  const pg = (node, at, d, from, to, pass) => ({ type: 'prog', node, at, d, from, to, pass });
+
+  const SCENES = [
+    { label: 'Floor', title: 'The factory floor', dur: 8, boot: true,
+      cap: 'One person decides. Six AI agents build, review and check the work. Two machines run the tests, and an issue tracker records every step.',
+      steps: [] },
+    { label: 'Issue', title: 'An issue becomes a brief', dur: 8, hl: ['lead'], header: true,
+      cap: 'Work starts as an issue in the tracker. The lead agent turns it into a brief: the goal and the test that proves it are fixed, and the builder picks the approach.',
+      steps: [mv('a', 'tracker-lead', .4, 1.4), rd('lead', 1.9, 'reading the issue'), rd('lead', 4, 'brief: goal, test, rules')] },
+    { label: 'Build', title: 'Failing test, then the fix', dur: 10, hl: ['lead', 'builderA'],
+      cap: 'A builder agent works on its own copy of the code. It writes a failing test first, then the fix, then saves the change with every check running. It reports back to the tracker.',
+      steps: [rd('lead', .1, 'assigning builder A'), mv('a', 'lead-builderA', .3, 1.4), rd('builderA', 1.8, 'own copy, own branch'),
+        rd('builderA', 3.4, 'new test: FAIL', 'fail'), rd('builderA', 5.4, 'fix written; test: PASS', 'pass'),
+        rd('builderA', 7.2, 'change saved, checks ran'), pu('s-builderA', 7.8, 1.6)] },
+    { label: 'Review', title: 'Another vendor reviews it', dur: 10, hl: ['lead', 'builderA', 'builderB', 'reviewer', 'shadow'],
+      cap: 'An agent from a different AI vendor reviews every change, and read-only agents can add a second opinion. A real problem blocks the release; anything smaller becomes a new issue.',
+      steps: [mv('a', 'lead-builderA', .2, 1.2, true), rd('lead', 1.4, 'review requested'), mv('a', 'lead-builderB', 1.6, 1.4),
+        mv('b', 'lead-reviewer', 1.8, 1.6), mv('c', 'lead-shadow', 2, 1.8), rd('builderB', 3.1, 'reviewing the change'),
+        rd('reviewer', 3.5, 'second opinion'), rd('shadow', 3.9, 'second opinion'), rd('builderB', 6, 'problem found: fix first', 'warn'),
+        rd('reviewer', 6.4, 'notes filed'), rd('shadow', 6.8, 'notes filed'),
+        pu('s-builderB', 7.2, 1.5), pu('s-reviewer', 7.4, 1.6), pu('s-shadow', 7.6, 1.7)] },
+    { label: 'Fix', title: 'One fix round', dur: 8, hl: ['lead', 'builderA', 'builderB'],
+      cap: 'The builder gets one round to fix it. Small leftovers become their own issues instead of more rounds.',
+      steps: [mv('a', 'lead-builderB', .2, 1.2, true), rd('lead', 1.4, 'fix brief for builder A'), mv('a', 'lead-builderA', 1.6, 1.3),
+        rd('builderA', 3, 'fix round 1'), rd('builderA', 5, 'problem fixed', 'pass'), pu('s-builderA', 5.6, 1.5)] },
+    { label: 'Test', title: 'The full test run', dur: 14, hl: ['lead', 'builderA', 'queue', 'enginelane', 'suitelane', 'runs'],
+      cap: 'The exact version goes to a separate test machine. A fresh copy runs the full test suite: engine tests in a sealed container, app tests in a real browser.',
+      steps: [rd('builderA', .1, 'queued for testing'), rd('enginelane', .1, 'running another job'), pg('enginelane', 0, 14, .25, .6, false),
+        mv('a', 'lead-builderA', .2, 1, true), mv('a', 'lead-queue', 1.3, 1), rd('queue', 2.3, 'app tests: next'),
+        mv('a', 'queue-suite', 2.8, 1.5), rd('suitelane', 4.3, 'fresh copy of the change'), pg('suitelane', 4.3, 5.2, 0, 1, true),
+        rd('suitelane', 6, '240 browser tests'), rd('suitelane', 9.5, 'PASS · no secrets found', 'pass'),
+        mv('a', 'results-suite', 9.9, 2.4), rd('runs', 12.3, 'result: PASS', 'pass')] },
+    { label: 'Verify', title: 'The claim gets checked', dur: 8, hl: ['lead', 'runs'],
+      cap: 'The lead agent reads the change and the test log, and checks the key claim itself before anything merges. Then it posts the result to the tracker.',
+      steps: [mv('a', 'runs-lead', .2, 1), rd('lead', 1.3, 'reading change and log'), rd('lead', 3.4, 'old version failed, as expected'),
+        rd('lead', 5.4, 'verified; posted', 'pass'), pu('lead-tracker', 5.8, 1.2)] },
+    { label: 'Ship', title: 'Who merges what', dur: 9, hl: ['lead', 'suite', 'engine', 'el', 'owner'],
+      cap: 'App changes merge once the full tests pass. Engine changes go to the product owner for approval, and they or a maintainer agent merge them.',
+      steps: [mv('a', 'lead-suite', .3, 1.4), rd('suite', 1.8, 'merged after full tests', 'pass'), mv('b', 'lead-engine', 2.4, 1.4),
+        rd('engine', 3.9, 'waiting for the owner'), rd('el', 4.4, 'merges on the owner\'s call'), rd('owner', 5, 'reviewing the change'),
+        mv('c', 'owner-engine', 5, 2.4), rd('engine', 7.5, 'merged by the owner', 'pass')] },
+    { label: 'Decide', title: 'A person makes the calls', dur: 9.5, hl: ['owner', 'lead', 'live'],
+      cap: 'The product owner gets the calls that change a number or a claim, as a short multiple-choice question with a recommendation. They check the live system in person; agents can only read it.',
+      steps: [mv('a', 'owner-lead', .3, 1.2, true), rd('owner', 1.6, 'Q: approve the rounding rule?'), rd('owner', 3.6, 'A: approve (recommended)', 'pass'),
+        mv('a', 'owner-lead', 4, 1.2), rd('lead', 5.3, 'decision recorded'), mv('b', 'owner-live', 5.6, .8),
+        rd('live', 6.4, 'walking the checklist'), mv('c', 'lead-live', 6.6, 1.6), rd('live', 8.3, 'agents: read-only checks')] },
+    { label: 'Rules', title: 'Rules every run follows', dur: 8, hl: ['charter'], charter: { at: .4, step: .7 },
+      cap: 'Every brief carries the same rules. The goal and the test are fixed, the approach is the builder\'s, and these rules hold for every agent.',
+      steps: [] },
+  ];
+  SCENES.forEach(s => s.steps.sort((a, b) => a.at - b.at));
+
+  // drawing: defs, sheet, zones
+  const defs = el('defs', null, svg);
+  const pat = el('pattern', { id: 'grid', width: 20, height: 20, patternUnits: 'userSpaceOnUse' }, defs);
+  el('path', { d: 'M20 0H0V20', class: 'gridline' }, pat);
+  for (const [id, cls] of [['arr', 'mk'], ['arr-on', 'mk on'], ['arr-st', 'mk st']]) {
+    const m = el('marker', { id, viewBox: '0 0 10 10', refX: 8.5, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: 'userSpaceOnUse', orient: 'auto' }, defs);
+    el('path', { d: 'M0,1L9,5L0,9Z', class: cls }, m);
+  }
+  el('rect', { x: 0, y: 0, width: 1200, height: 760, class: 'sheetbg' }, svg);
+  el('rect', { x: 0, y: 0, width: 1200, height: 760, fill: 'url(#grid)' }, svg);
+  const zoneG = el('g', { class: 'zones' }, svg);
+  for (const z of ZONES) {
+    el('rect', { x: z.x, y: z.y, width: z.w, height: z.h, rx: 4 }, zoneG);
+    txt(zoneG, z.x + (z.lx || 12), z.y + 18, 'zlabel', z.label);
+    if (z.sub) txt(zoneG, z.x + 12, z.y + 33, 'zsub', z.sub);
+  }
+
+  // edges
+  const edgeG = el('g', null, svg);
+  const P = {}, LEN = {};
+  for (const e of EDGES) {
+    P[e.id] = el('path', { d: e.d, class: 'edge ' + (e.kind || 'work'), 'marker-end': e.kind === 'status' ? 'url(#arr-st)' : 'url(#arr)' }, edgeG);
+  }
+
+  // tracker header pipe
+  const hdr = el('g', { class: 'hdr' }, svg);
+  el('rect', { x: 40, y: 132, width: 1120, height: 36, rx: 3, class: 'bar' }, hdr);
+  el('rect', { x: 40, y: 132, width: 82, height: 36, rx: 3, class: 'plate' }, hdr);
+  txt(hdr, 81, 155, 'hdr-name', 'ISSUES', 'middle');
+  txt(hdr, 136, 155, 'hdr-text', 'the tracker is the record: every task posts started, progress, finished, needs a decision');
+
+  const labG = el('g', null, svg);
+  for (const l of LABELS) {
+    const t = txt(labG, l.x, l.y, 'elabel', l.t, l.anchor);
+    if (l.rot) t.setAttribute('transform', `rotate(-90 ${l.x} ${l.y})`);
+  }
+
+  // nodes
+  const nodeG = el('g', null, svg);
+  const N = {};
+  for (const n of NODES) {
+    const g = el('g', { class: 'node' }, nodeG);
+    el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 5, class: 'box' }, g);
+    const led = el('circle', { cx: n.x + n.w - 14, cy: n.y + 14, r: 4, class: 'led' }, g);
+    const big = n.h >= 90;
+    txt(g, n.x + 12, n.y + (big ? 22 : 17), 'tag', n.tag);
+    txt(g, n.x + 12, n.y + (big ? 54 : n.prog ? 38 : Math.round(n.h * 0.6)), big ? 'name big' : 'name', n.name);
+    const ry = big ? n.y + 78 : n.prog ? n.y + 53 : n.y + n.h - 9;
+    const read = txt(g, n.x + 12, ry, 'read', n.read);
+    let bar = null;
+    if (n.prog) {
+      el('rect', { x: n.x + 12, y: n.y + n.h - 11, width: n.w - 24, height: 4, rx: 2, class: 'prog-bg' }, g);
+      bar = el('rect', { x: n.x + 12, y: n.y + n.h - 11, width: 0, height: 4, rx: 2, class: 'prog' }, g);
+    }
+    N[n.id] = { g, led, read, bar, def: n.read, bw: n.w - 24, cur: n.read, cls: '' };
+  }
+  const ch = el('g', { class: 'node' }, nodeG);
+  el('rect', { x: 430, y: 548, width: 360, height: 136, rx: 5, class: 'box' }, ch);
+  const chLed = el('circle', { cx: 776, cy: 562, r: 4, class: 'led' }, ch);
+  txt(ch, 446, 566, 'tag', 'RULES · IN EVERY BRIEF');
+  const items = CHARTER.map((s, i) => {
+    const x = 446 + (i < 3 ? 0 : 172), y = 597 + (i % 3) * 30;
+    const g = el('g', { class: 'citem' }, ch);
+    el('rect', { x, y: y - 9, width: 8, height: 8, class: 'cbox' }, g);
+    txt(g, x + 16, y, 'ctext', s);
+    return g;
+  });
+  N.charter = { g: ch, led: chLed, read: null };
+
+  // tokens and pulses
+  const pulseG = el('g', null, svg);
+  const tokG = el('g', null, svg);
+  const T = {};
+  for (const [id, r] of [['a', 7], ['b', 5.5], ['c', 5.5]]) {
+    const g = el('g', { visibility: 'hidden' }, tokG);
+    el('circle', { r: r + 7, class: 'halo' }, g);
+    el('circle', { r, class: 'token' }, g);
+    T[id] = g;
+  }
+
+  const clamp = v => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const ease = f => (f < .5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2);
+  const pointAt = (id, f) => {
+    const p = P[id];
+    if (LEN[id] === undefined) LEN[id] = p.getTotalLength();
+    return p.getPointAtLength(LEN[id] * f);
+  };
+
+  // page controls
+  const sn = document.getElementById('sn'), st = document.getElementById('st'), sc = document.getElementById('sc');
+  const pb = document.getElementById('pb'), capwrap = document.getElementById('capwrap');
+  const playBtn = document.getElementById('play'), playLabel = document.getElementById('playlabel'), playIcon = document.getElementById('playicon');
+  const rail = document.getElementById('rail');
+  const chips = SCENES.map((s, k) => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.id = 'scene-' + (k + 1);
+    b.innerHTML = `<span class="n">${String(k + 1).padStart(2, '0')}</span><span>${s.label}</span>`;
+    b.addEventListener('click', () => go(k));
+    li.appendChild(b);
+    rail.appendChild(li);
+    return b;
+  });
+
+  const RM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let idx = 0, t = 0, playing = !RM, last = null, dirty = true, pulseEls = [];
+
+  function enterScene(i, atEnd) {
+    idx = (i + SCENES.length) % SCENES.length;
+    const s = SCENES[idx];
+    t = atEnd ? s.dur : 0;
+    pulseG.replaceChildren();
+    pulseEls = s.steps.filter(x => x.type === 'pulse').map(x => ({ st: x, c: el('circle', { r: 4, class: 'pulse', visibility: 'hidden' }, pulseG) }));
+    sn.textContent = String(idx + 1).padStart(2, '0');
+    st.textContent = s.title;
+    sc.textContent = s.cap;
+    chips.forEach((c, k) => {
+      if (k === idx) c.setAttribute('aria-current', 'step'); else c.removeAttribute('aria-current');
+      c.classList.toggle('done', k < idx);
+    });
+    dirty = true;
+  }
+
+  function render() {
+    const s = SCENES[idx], steps = s.steps, hl = s.hl ? new Set(s.hl) : null;
+    for (const id in N) {
+      const n = N[id], on = hl ? hl.has(id) : false;
+      n.g.classList.toggle('on', on);
+      n.g.classList.toggle('dim', !!hl && !on);
+      let lit = on;
+      if (s.boot) { const o = BOOT.indexOf(id); lit = o >= 0 && t >= .4 + o * .22; }
+      n.led.classList.toggle('lit', lit);
+    }
+    hdr.classList.toggle('on', !!s.header);
+
+    const reads = {};
+    for (const x of steps) if (x.type === 'read' && x.at <= t) reads[x.node] = x;
+    for (const id in N) {
+      const n = N[id];
+      if (!n.read) continue;
+      const r = reads[id], text = r ? r.text : n.def, cls = r ? r.cls : '';
+      if (text !== n.cur) { n.read.textContent = text; n.cur = text; }
+      if (cls !== n.cls) { n.read.setAttribute('class', 'read' + (cls ? ' ' + cls : '')); n.cls = cls; }
+    }
+
+    for (const id of ['enginelane', 'suitelane']) {
+      const n = N[id], x = steps.find(y => y.type === 'prog' && y.node === id);
+      let w = 0, done = false;
+      if (x) { const f = clamp((t - x.at) / x.d); w = x.from + (x.to - x.from) * f; done = x.pass && f >= 1; }
+      n.bar.setAttribute('width', (w * n.bw).toFixed(1));
+      n.bar.classList.toggle('pass', done);
+    }
+
+    const used = new Set();
+    for (const x of steps) if ((x.type === 'move' || x.type === 'pulse') && x.at <= t) used.add(x.path);
+    for (const e of EDGES) {
+      const p = P[e.id], on = used.has(e.id);
+      p.classList.toggle('on', on);
+      p.classList.toggle('dim', !!hl && !on);
+      if (e.kind !== 'status') p.setAttribute('marker-end', on ? 'url(#arr-on)' : 'url(#arr)');
+    }
+
+    const latest = {};
+    for (const x of steps) if (x.type === 'move' && x.at <= t) latest[x.tok] = x;
+    for (const id in T) {
+      const x = latest[id], g = T[id];
+      if (!x) { g.setAttribute('visibility', 'hidden'); continue; }
+      const f = ease(clamp((t - x.at) / x.d)), pt = pointAt(x.path, x.rev ? 1 - f : f);
+      g.setAttribute('transform', `translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})`);
+      g.setAttribute('visibility', 'visible');
+    }
+
+    let ping = false;
+    for (const { st: x, c } of pulseEls) {
+      const f = (t - x.at) / x.d;
+      if (f >= 0 && f <= 1) {
+        const pt = pointAt(x.path, ease(f));
+        c.setAttribute('cx', pt.x.toFixed(1));
+        c.setAttribute('cy', pt.y.toFixed(1));
+        c.setAttribute('visibility', 'visible');
+      } else c.setAttribute('visibility', 'hidden');
+      if (f > 1 && t - (x.at + x.d) < .7) ping = true;
+    }
+    hdr.classList.toggle('ping', ping);
+
+    items.forEach((g, i) => g.classList.toggle('lit', !!s.charter && t >= s.charter.at + i * s.charter.step));
+    pb.style.width = (clamp(t / s.dur) * 100).toFixed(2) + '%';
+  }
+
+  function setPlaying(p) {
+    playing = p;
+    playLabel.textContent = p ? 'Pause' : 'Play';
+    playIcon.innerHTML = p ? '<path d="M2 1h3v10H2zM7 1h3v10H7z"/>' : '<path d="M2 1l9 5-9 5z"/>';
+    capwrap.setAttribute('aria-live', p ? 'off' : 'polite');
+    last = null;
+  }
+  function toggle() {
+    if (!playing && t >= SCENES[idx].dur - .05) { t = 0; dirty = true; }
+    setPlaying(!playing);
+  }
+  function go(k) { enterScene(k, !playing); }
+  function step(d) { go(idx + d); }
+
+  playBtn.addEventListener('click', toggle);
+  document.getElementById('prev').addEventListener('click', () => step(-1));
+  document.getElementById('next').addEventListener('click', () => step(1));
+  document.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('button, a, input, select, textarea')) return;
+    if (e.key === ' ') { e.preventDefault(); toggle(); }
+    else if (e.key === 'ArrowRight') step(1);
+    else if (e.key === 'ArrowLeft') step(-1);
+  });
+  document.addEventListener('visibilitychange', () => { last = null; });
+
+  function frame(ts) {
+    if (last === null) last = ts;
+    let dt = (ts - last) / 1000;
+    last = ts;
+    if (dt > .1) dt = .1;
+    if (playing && !document.hidden) {
+      t += dt;
+      dirty = true;
+      if (t >= SCENES[idx].dur + .4) enterScene(idx + 1, false);
+    }
+    if (dirty) { render(); dirty = false; }
+    requestAnimationFrame(frame);
+  }
+
+  setPlaying(playing);
+  enterScene(0, RM);
+  render();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
